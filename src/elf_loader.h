@@ -112,6 +112,17 @@ enum {
 
 const char *elf_strerror(int error);
 
+/* Map an already-retyped frame into the ROOT vspace (root paging is
+ * created on demand).  Used by vga.c for the framebuffer window. */
+seL4_Error elf_root_map_frame(seL4_BootInfo *bi, seL4_CPtr frame,
+                              seL4_Word vaddr, seL4_CapRights_t rights,
+                              seL4_X86_VMAttributes attr);
+
+/* 2 MiB large-page variant (no PT may exist for the region). */
+seL4_Error elf_root_map_large_frame(seL4_BootInfo *bi, seL4_CPtr frame,
+                                    seL4_Word vaddr, seL4_CapRights_t rights,
+                                    seL4_X86_VMAttributes attr);
+
 /* Debug: stage tag of the last failed mapping step and its raw seL4
  * error code ('p' PDPT, 'd' PD, 't' PT, 'c' copy, 's' scratch map,
  * 'm' child map, 'f' fork copy, 'a' ASID, '?' none). */

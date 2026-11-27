@@ -24,6 +24,7 @@
 #include <burmalda/protocol.h>  /* burmalda_run() + hooks */
 
 #include "elf_loader.h"
+#include "vga.h"
 
 /* Embedded ELF images (see hello_embed.S / dinit_embed.S / halt_embed.S). */
 extern const uint8_t hello_elf_start[];
@@ -579,10 +580,14 @@ int main(void)
                 ferrix_debug_puts("\n");
             }
         }
-        ferrix_debug_puts("ferrix-init: empty slots ");
-        ferrix_debug_put_hex(bi->empty.end - bi->empty.start);
-        ferrix_debug_puts("\n");
+    ferrix_debug_puts("ferrix-init: empty slots ");
+    ferrix_debug_put_hex(bi->empty.end - bi->empty.start);
+    ferrix_debug_puts("\n");
     }
+
+    /* VGA framebuffer console (GRUB multiboot2 fb header in bootinfo);
+     * harmless no-op when booting text-mode (QEMU -kernel path). */
+    ferrix_vga_init(bi);
 
     _fault_ep = retype(bi, seL4_EndpointObject, seL4_EndpointBits);
     if (_fault_ep == seL4_CapNull) return fail("endpoint retype", seL4_NotEnoughMemory);

@@ -26,6 +26,7 @@ endif()
 add_executable(ferrix_init
     src/main.c
     src/elf_loader.c
+    src/vga.c
     src/hello_embed.S
     src/dinit_embed.S
     src/halt_embed.S

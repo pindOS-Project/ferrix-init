@@ -104,6 +104,33 @@ const char *elf_strerror(int error)
     }
 }
 
+/* Map an already-retyped frame cap into the ROOT vspace at vaddr
+ * (creating PDPT/PD/PT as needed).  Shared with vga.c. */
+static int ensure_root_paging(seL4_BootInfo *bi, seL4_Word vaddr);
+static int ensure_root_paging_nopt(seL4_BootInfo *bi, seL4_Word vaddr,
+                                   int no_pt);
+seL4_Error elf_root_map_frame(seL4_BootInfo *bi, seL4_CPtr frame,
+                              seL4_Word vaddr, seL4_CapRights_t rights,
+                              seL4_X86_VMAttributes attr)
+{
+    int rc = ensure_root_paging(bi, vaddr);
+    if (rc != ELF_OK) return seL4_InvalidCapability;
+    return seL4_X86_Page_Map(frame, seL4_CapInitThreadVSpace, vaddr,
+                             rights, attr);
+}
+
+/* Like elf_root_map_frame but for 2 MiB large pages: the PT for the
+ * region must NOT exist (a PDE large-page mapping conflicts with it). */
+seL4_Error elf_root_map_large_frame(seL4_BootInfo *bi, seL4_CPtr frame,
+                                    seL4_Word vaddr, seL4_CapRights_t rights,
+                                    seL4_X86_VMAttributes attr)
+{
+    int rc = ensure_root_paging_nopt(bi, vaddr, true);
+    if (rc != ELF_OK) return seL4_InvalidCapability;
+    return seL4_X86_Page_Map(frame, seL4_CapInitThreadVSpace, vaddr,
+                             rights, attr);
+}
+
 /* ---------------------------------------------------------------------
  * Process table
  * --------------------------------------------------------------------- */
@@ -261,7 +288,8 @@ static seL4_Word _root_have_pdpt[MAX_REGIONS_EL]; static int _root_n_pdpt;
 static seL4_Word _root_have_pd[MAX_REGIONS_EL];   static int _root_n_pd;
 static seL4_Word _root_have_pt[MAX_REGIONS_EL];   static int _root_n_pt;
 
-static int ensure_root_paging(seL4_BootInfo *bi, seL4_Word vaddr)
+static int ensure_root_paging_nopt(seL4_BootInfo *bi, seL4_Word vaddr,
+                                   int no_pt)
 {
     seL4_CPtr obj;
     seL4_Error err;
@@ -284,7 +312,7 @@ static int ensure_root_paging(seL4_BootInfo *bi, seL4_Word vaddr)
             return ELF_E_MAP;
         }
     }
-    if (!region_seen(_root_have_pt, &_root_n_pt, vaddr >> 21)) {
+    if (!no_pt && !region_seen(_root_have_pt, &_root_n_pt, vaddr >> 21)) {
         obj = ferrix_retype(bi, seL4_X86_PageTableObject, seL4_PageTableBits);
         if (obj == seL4_CapNull) return ELF_E_NOMEM;
         err = seL4_X86_PageTable_Map(obj, seL4_CapInitThreadVSpace, vaddr, seL4_X86_Default_VMAttributes);
@@ -294,6 +322,11 @@ static int ensure_root_paging(seL4_BootInfo *bi, seL4_Word vaddr)
         }
     }
     return ELF_OK;
+}
+
+static int ensure_root_paging(seL4_BootInfo *bi, seL4_Word vaddr)
+{
+    return ensure_root_paging_nopt(bi, vaddr, false);
 }
 
 /* ---------------------------------------------------------------------
