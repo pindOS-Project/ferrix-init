@@ -362,15 +362,25 @@ static long ferrix_write_ctx(void *ctx, seL4_Word badge,
 /* fork: duplicate the parent VSpace and prepare a fresh TCB.  The new
  * thread is not started here; burmalda resumes it via write_ctx with
  * the parent's registers (rax=0). */
+static seL4_Word alloc_pid(void)
+{
+    for (seL4_Word pid = 2; pid < 1000; pid++) {
+        if (ferrix_proc_find(pid) == NULL) return pid;
+    }
+    return 0;
+}
+
 static seL4_Word ferrix_spawn(void *ctx, seL4_Word parent_badge)
 {
     seL4_BootInfo *bi = (seL4_BootInfo *)ctx;
     ferrix_proc_t *parent = find_proc(parent_badge);
     if (parent == NULL) return 0;
 
-    ferrix_proc_t *p = ferrix_proc_alloc(_next_pid, parent_badge);
+    seL4_Word pid = alloc_pid();
+    if (pid == 0) { ferrix_debug_puts("spawn: proc table full\n"); return 0; }
+    ferrix_proc_t *p = ferrix_proc_alloc(pid, parent_badge);
     if (p == NULL) { ferrix_debug_puts("spawn: proc table full\n"); return 0; }
-    p->badge = _next_pid++;
+    p->badge = pid;
 
     p->fs_base  = parent->fs_base;
     p->heap_top = parent->heap_top;
@@ -508,6 +518,7 @@ static void ferrix_reap(void *ctx, seL4_Word badge)
     ferrix_proc_t *p = find_proc(badge);
     if (p != NULL && p->exited) {
         elf_proc_destroy(p);
+        p->used = false;      /* free the table slot (pid becomes reusable) */
     }
 }
 
